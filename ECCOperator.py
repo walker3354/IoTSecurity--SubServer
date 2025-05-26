@@ -78,7 +78,11 @@ class ECC_P256:
         temp_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(),secret_package['temp_key'])
         share_key = self.private_key.exchange(ec.ECDH(),temp_key)
         aes_key = HKDF(algorithm=hashes.SHA256(),length=32, salt=None, info=b"ecies").derive(share_key)
-        return AESGCM(aes_key).decrypt(secret_package['nonce'],secret_package['secret'],None)
+        try:
+            return AESGCM(aes_key).decrypt(secret_package['nonce'],secret_package['secret'],None)
+        except:
+            print("Decryption Error!")
+            return False
     
     def signature(self,message):
         return self.private_key.sign(message,ec.ECDSA(hashes.SHA256()))
@@ -86,8 +90,10 @@ class ECC_P256:
     def verify_signature(self,message,sign):
         try:
             self.public_key.verify(sign,message,ec.ECDSA(hashes.SHA256()))
+            print("Singnature verify Pass!!")
             return True
         except:
+            print("Singnature verify Error!!")
             return False
 
     def generate_session_key(self,receiver_pk_pem):
@@ -103,12 +109,49 @@ class ECC_P256:
 
     def symmetric_decryption(self,secret_package,session_key):
         aesgcm = AESGCM(session_key)
-        message = aesgcm.decrypt(secret_package['nonce'],secret_package['secret'],None)
-        return message
+        try:
+            message = aesgcm.decrypt(secret_package['nonce'],secret_package['secret'],None)
+            return message
+        except:
+            print("Decryption Error")
+            return False
 
 
 if __name__ =="__main__":
-    ECC_1 = ECC_P256(dev_mode=True)
-    ECC_2 = ECC_P256(dev_mode=True)
-    secret = ECC_2.asymmetric_encryption(b"HI",ECC_1.public_key_pem)
-    print(ECC_1.asymmetric_decryption(secret))
+    # Initialize the first ECC instance (will load or generate keys)
+    ecc1 = ECC_P256(dev_mode=True)
+
+    # Remove the key files so that the next instance generates a new key pair
+    if os.path.exists("private_key.pem"):
+        os.remove("private_key.pem")
+    if os.path.exists("public_key.pem"):
+        os.remove("public_key.pem")
+
+    # Initialize the second ECC instance (will generate fresh keys)
+    ecc2 = ECC_P256(dev_mode=True)
+
+    # === Test asymmetric encryption / decryption ===
+    original_msg = b"Hello, ECC!"
+    asym_pkg = ecc2.asymmetric_encryption(original_msg, ecc1.public_key_pem)
+    decrypted_msg = ecc1.asymmetric_decryption(asym_pkg)
+    assert decrypted_msg == original_msg, "Asymmetric decryption failed"
+    print("Asymmetric encryption/decryption test passed")
+
+    # === Test signature / verification ===
+    signature = ecc1.signature(original_msg)
+    verify_result = ecc1.verify_signature(original_msg, signature)
+    assert verify_result, "Signature verification failed"
+    print("Signature/verification test passed")
+
+    # === Test session key derivation and symmetric encryption / decryption ===
+    # Both sides derive the same session key via ECDH
+    session_key1 = ecc1.generate_session_key(ecc2.public_key_pem)
+    session_key2 = ecc2.generate_session_key(ecc1.public_key_pem)
+    assert session_key1 == session_key2, "Session keys do not match"
+    print("Session key derivation test passed")
+
+    # Encrypt and decrypt a message using the shared session key
+    sym_pkg = ecc1.symmetric_encryption(original_msg, session_key1)
+    decrypted_sym = ecc2.symmetric_decryption(sym_pkg, session_key2)
+    assert decrypted_sym == original_msg, "Symmetric decryption failed"
+    print("Symmetric encryption/decryption test passed")
