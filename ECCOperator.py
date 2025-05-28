@@ -17,10 +17,10 @@ class ECC_P256:
 
     def __read_keys(self):
         try:
-            with open("private_key.pem",'rb') as f:
+            with open("Keys/private_key.pem",'rb') as f:
                 sk_pem = f.read()
                 self.private_key = serialization.load_pem_private_key(sk_pem,password=None)
-            with open("public_key.pem",'rb')as f:
+            with open("Keys/public_key.pem",'rb')as f:
                 pk_pem = f.read()
                 self.public_key = serialization.load_pem_public_key(pk_pem)
             self.private_key_pem,self.public_key_pem = self.__keys_serialization()
@@ -54,14 +54,22 @@ class ECC_P256:
         return serialization_private_key,serialization_public_key
 
     def __store_keys(self):#we use pem formate to store our keys info
-        with open("private_key.pem","wb") as f:
+        with open("Keys/private_key.pem","wb") as f:
             f.write(self.private_key_pem)
-        with open("public_key.pem","wb") as f:
+        with open("Keys/public_key.pem","wb") as f:
             f.write(self.public_key_pem)
 
     def print_keys(self):
         print(f"Private Key(pem):\n{self.private_key_pem}")
         print(f"Public Key:(pem)\n{self.public_key_pem}")
+
+    def read_pk_pem(self,pk_pem_path = "ServerKey/Server_pk.pem"):
+        try:
+            with open(pk_pem_path,'rb') as f:
+                stored_pk_pem = f.read()
+                return stored_pk_pem
+        except Exception:
+            print("Error occur while reading pk pem file!!")
 
     def asymmetric_encryption(self,message,receiver_pk_pem):
         receiver_pk = serialization.load_pem_public_key(receiver_pk_pem)
