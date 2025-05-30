@@ -33,7 +33,6 @@ env.bak/
 venv.bak/
 
 # Private keys, credentials
-*.pem
 *.key
 *.crt
 *.der
